@@ -1,0 +1,4 @@
+module(
+    name = "rules_xslt",
+    version = "0.1.0",
+)

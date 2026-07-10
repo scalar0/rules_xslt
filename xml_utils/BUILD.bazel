@@ -1,0 +1,53 @@
+load("@xslt//contract:defs.bzl", "xslt_transform_def")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "INPUT.xsd",
+    "OUTPUT.xsd",
+    "LIB_FLAT_ROWS.xslt",
+    "LIB_SPLIT_XML.xslt",
+])
+
+filegroup(
+    name = "flat_rows_deps",
+    srcs = ["LIB_FLAT_ROWS.xslt"],
+)
+
+filegroup(
+    name = "input_schema_deps",
+    srcs = [],
+)
+
+filegroup(
+    name = "output_schema_deps",
+    srcs = [],
+)
+
+filegroup(
+    name = "libxslt",
+    srcs = [],
+)
+
+filegroup(
+    name = "resources",
+    srcs = [],
+)
+
+xslt_transform_def(
+    name = "transform",
+    default_params = {
+        "idElement": "id",
+        "itemElement": "",
+        "outFileSuffix": ".xml",
+    },
+    input_schema = "INPUT.xsd",
+    input_schema_deps = [":input_schema_deps"],
+    output_kind = "array_item_fanout",
+    output_schema = "OUTPUT.xsd",
+    output_schema_deps = [":output_schema_deps"],
+    required_params = ["itemIds"],
+    resources = [":resources"],
+    stylesheet = "LIB_SPLIT_XML.xslt",
+    deps = [":libxslt"],
+)
