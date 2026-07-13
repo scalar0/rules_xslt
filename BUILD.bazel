@@ -1,14 +1,12 @@
 package(default_visibility = ["//visibility:public"])
 
-filegroup(
-    name = "flat_rows_deps",
-    srcs = ["//xslt/xml_utils:flat_rows_deps"],
+exports_files(
+    [
+        "defs.bzl",
+        "toolchains.bzl",
+    ],
 )
 
-filegroup(
-    name = "libxslt",
-    srcs = [
-        ":flat_rows_deps",
-        "//xslt/wordprocessingml:libxslt",
-    ],
+toolchain_type(
+    name = "xslt_toolchain_type",
 )

@@ -1,37 +1,94 @@
-# xslt
+# rules_xslt
 
-Shared low-level XSLT helpers used by transform packages.
+`rules_xslt` is the processor-independent rules and provider module.
+It contains no Saxon runtime and no OOXML-specific assets.
 
-## Helper boundaries
+## Consumer setup
 
-- `xml_utils/LIB_FLAT_ROWS.xslt`: generic row field access (`f:field`, `f:first-non-empty`).
-- `wordprocessingml/LIB_WORDML_STYLES.xslt`: style-map loading/lookup and style emitters (`EmitParagraphStyle`, `EmitRunFormatting`, table/cell style helpers).
-- `wordprocessingml/LIB_WORDML_TEXT.xslt`: plain text/run/line-break and paragraph helpers.
-- `wordprocessingml/LIB_WORDML_CONTENT_CONTROLS.xslt`: generic content-control ID/tag/alias and repeating-row wrappers.
-- `wordprocessingml/LIB_WORDML_TABLES.xslt`: generic table properties, static header helpers, and checkbox cell primitive.
-- `wordprocessingml/LIB_WORDML_DOCUMENT.xslt`: `EmitWordDocument` wrapper for `w:document` / `w:body` shell.
-- `wordprocessingml/MERGE_TO_TEMPLATE.xslt`: reusable merge transform that appends generated WordML content into a template `word/document.xml`.
-- `contract/defs.bzl`, `contract/providers.bzl`: shared Starlark provider/rule contract (`XsltTransformInfo`, `xslt_transform_def`).
-- `xml_utils/LIB_SPLIT_XML.xslt`: generic array-item fanout transform contract (`@xslt//xml_utils:transform`).
+Add the module dependency and register a compatible processor implementation in the root module.
 
-## Dependency notes
+```starlark
+bazel_dep(name = "rules_xslt", version = "1.0.0")
+bazel_dep(name = "saxon_toolchain", version = "1.0.0")
 
-- `wordprocessingml/LIB_WORDML_STYLES.xslt` expects a style-map XML via `StyleMapUri` (defaults to `../../djd_workbook_to_wordml/WORD_STYLE_MAP.xml`). Concrete style keys stay in the consuming package.
-- `wordprocessingml/LIB_WORDML_TEXT.xslt` calls `RenderSegmentContent` and `EmitBodyParagraphProperties`; consumers provide domain-specific segment behavior and paragraph style context.
-- `wordprocessingml/LIB_WORDML_TABLES.xslt` relies on style/content-control templates provided by the style/content-control helpers.
+register_toolchains("@saxon_toolchain//:saxon")
+```
 
-## Non-goals
+Load all public APIs from one entry point.
 
-This package does **not** define:
+```starlark
+load(
+    "@rules_xslt//:defs.bzl",
+    "xslt_chain",
+    "xslt_library",
+    "xslt_stage",
+    "xslt_transform_multi",
+)
+```
 
-- workbook/SSS/requirement/evidence/reference/compliance semantics
-- section layout, heading text, or column definitions
-- control-ID allocation policies
-- descriptor/config-driven rendering models
+## Execute a linear chain
 
-## Guidance for future transforms (without descriptor/config)
+Every stage is predefined by its publishing module.
+The source label must produce exactly one file, and every selected stage must use `output_mode = "single"`.
 
-- Keep transform entrypoints and domain mapping/layout logic in the document-specific package.
-- Include only the common helper libraries needed for boilerplate WordML/row primitives.
-- Keep style maps, style keys, token parsing, and domain rules local.
-- Prefer explicit templates over a generic descriptor/config layer.
+```starlark
+xslt_chain(
+    name = "result",
+    src = "input.xml",
+    stages = [
+        "@transform_assets//stages:normalize",
+        "@transform_assets//stages:render",
+    ],
+    out = "result.xml",
+)
+```
+
+`DefaultInfo` exposes only `result.xml`.
+Non-final files are available through the `intermediates` output group.
+
+```bash
+bazel build //:result --output_groups=+intermediates
+```
+
+## Execute a fan-out stage
+
+Every expected secondary result must be declared under one output directory.
+The stylesheet determines the filenames, so the `outs` list must match them exactly.
+
+```starlark
+xslt_transform_multi(
+    name = "parts",
+    src = "array.xml",
+    stage = "@transform_assets//stages:split",
+    outs = [
+        "parts/Alpha.xml",
+        "parts/Beta.xml",
+    ],
+)
+```
+
+## Publish transformation assets
+
+Use `xslt_library` for reusable stylesheet boundaries referenced by logical `xsl:include` or `xsl:import` URIs.
+Use `xslt_stage` only for complete executable entry points.
+
+```starlark
+xslt_library(
+    name = "styles",
+    stylesheet = "styles.xslt",
+    uri = "urn:example:styles:1",
+    uri_mappings = {
+        "urn:example:style-map": "style-map.xml",
+    },
+)
+
+xslt_stage(
+    name = "render",
+    stylesheet = "render.xslt",
+    deps = [":styles"],
+    capabilities = ["xslt-3.0"],
+)
+```
+
+`output_mode = "multi"` automatically requires `secondary-result-document`.
+Non-empty `uri_mappings` automatically require `xml-catalog`.
