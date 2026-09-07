@@ -1,1 +1,7 @@
-repo(default_visibility = ["//visibility:private"])
+repo(
+    default_package_metadata = [
+        "//:license",
+        "//:package_metadata",
+    ],
+    default_visibility = ["//visibility:private"],
+)
